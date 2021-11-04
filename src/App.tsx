@@ -1,135 +1,126 @@
-import './App.css';
+import React, {useEffect, useState} from "react"
+import { ReactSortable } from "react-sortablejs";
+import styled from "styled-components";
+import _ from 'underscore';
+import "./index.css";
 
-import React, {useState} from 'react'
-import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd'
-import {Exercise, Group, Item, Workout} from "./Clases"
+const StyledBlockWrapper = styled.div`
+	position: relative;
+	background: white;
+	padding: 20px;
+	margin-bottom: 10px;
+	border: 1px solid lightgray;
+	border-radius: 4px;
+	cursor: move;
+	&:hover {
+	//background: #eeeeee;
+	}
+`;
 
-interface ExcerciseViewProps {
-	group: Group
-	exercise: Exercise
-}
+const sortableOptions = {
+	animation: 150,
+	fallbackOnBody: true,
+	swapThreshold: 0.65,
+	ghostClass: "ghost",
+	group: "shared"
+};
 
-function ExerciseView(props: ExcerciseViewProps) {
-	return (
-		<Draggable key={props.exercise.name} draggableId={props.group.name + props.exercise.name} index={props.exercise.order}>
-			{(provided) => (
-				<li ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
-					<p>
-						{props.exercise.name}
-					</p>
-				</li>
-			)}
-		</Draggable>
-	)
-}
+export default function App() {
+	const [rutina, setRutina] = useState("")
+	const [blocks, setBlocks] = useState([{
+		id: 0,
+		name: "initialBlock",
+		children: new Array()
+	}]);
 
-interface GroupViewProps {
-	group: Group
-}
+	useEffect(() => {
+		console.log(blocks)
+	}, [ blocks ])
 
-function GroupView(props: GroupViewProps) {
-	return (
-		// <Draggable key={props.group.name} draggableId={props.group.name} index={props.index}>
-		// 	{(provided) => (
-				<Droppable droppableId={props.group.name} >
-					{(provided) => (
-						<div className="group">
-							<p className="groupName">{props.group.name}</p>
-							<ul className="items" {...provided.droppableProps} ref={provided.innerRef}>
-								{
-									props.group.orderedItems().map((item: Item) => {
-										if (item instanceof Exercise) {
-											return (
-												<ExerciseView group={props.group} exercise={item} />
-											);
-										} else if (item instanceof Group) {
-											return (
-												<GroupView group={item} />
-											);
-										}
-									})
-								}
-							</ul>
-						</div>
-					)}
-				</Droppable>
-		// 	)}
-		// </Draggable>
-	)
-}
-
-function App() {
-	const workout = new Workout("workout")
-	const group1 = new Group("grupo 1")
-	const group2 = new Group("grupo 2")
-	workout.items.push(group1)
-	workout.items.push(group2)
-	group1.items.push(new Exercise("ejercicio 1"))
-	group1.items.push(new Exercise("ejercicio 2"))
-	group1.items.push(new Exercise("ejercicio 3"))
-	group2.items.push(new Exercise("ejercicio 1"))
-	group2.items.push(new Exercise("ejercicio 2"))
-
-	const reorder = (list: Array<Item>, startIndex: number, endIndex: number) => {
-		const result = Array.from(list);
-		const [removed] = result.splice(startIndex, 1);
-		result.splice(endIndex, 0, removed);
-
-		return result;
-	};
-
-	function onDragEnd(result: any) {
-		// dropped outside the list
-		if (!result.destination) {
-			//console.log("no-change");
-			return;
-		}
-
-		if (result.type === "QUESTIONS") {
-			console.log(result);
-			const questions = reorder(
-				this.state.questions,
-				result.source.index,
-				result.destination.index
-			);
-
-			this.setState({
-				questions
+	const cargar = () => {
+		const lines = (rutina.match(/.*\n/g)||[]);
+		_.each(lines, (line) => {
+			blocks[0].children.push({
+				id: blocks[0].children.length + 1,
+				name: line
 			});
-		} else {
-			const answers = reorder(
-				this.state.questions[parseInt(result.type, 10)].answers,
-				result.source.index,
-				result.destination.index
-			);
-
-			const questions = JSON.parse(JSON.stringify(this.state.questions));
-
-			questions[result.type].answers = answers;
-
-			this.setState({
-				questions
-			});
-		}
+		})
+		setBlocks(blocks);
+		setRutina("");
 	}
 
-	return (
-		<DragDropContext onDragEnd={onDragEnd}>
-			{
-				workout.orderedItems().map((item: Item) => {
-					if (item instanceof Exercise) {
-						return (
-							<ExerciseView group={workout} exercise={item} />
-						);
-					} else if (item instanceof Group) {
-						return (
-							<GroupView group={item} />
-						);
-					}
-				})
-			}
-		</DragDropContext>
-	)
-}
+	const handleChange = (event: any) => {
+        setRutina(event.target.value);
+    };
 
-export default App;
+	return (
+		<div>
+			<ReactSortable list={blocks} setList={setBlocks} {...sortableOptions}>
+				{blocks.map((block, blockIndex) => (
+					<BlockWrapper
+						key={block.id}
+						block={block}
+						blockIndex={[blockIndex]}
+						setBlocks={setBlocks}
+					/>
+				))}
+			</ReactSortable>
+			<textarea id="data" rows={30} cols={60} value={rutina} onChange={handleChange}></textarea><br/>
+			<button onClick={cargar}>Cargar</button>
+		</div>
+	);
+}
+function Container(props: any) {
+	const { block, blockIndex, setBlocks } = props
+	return (
+		<>
+			<ReactSortable
+				key={block.id}
+				list={block.children ? block.children : []}
+				setList={(currentList) => {
+					setBlocks((sourceList: any) => {
+						const tempList = [...sourceList];
+						const _blockIndex = [...blockIndex];
+						const lastIndex = _blockIndex.pop();
+						const lastArr = _blockIndex.reduce(
+							(arr, i) => arr[i]["children"],
+							tempList
+						);
+						console.log(lastIndex);
+						lastArr[lastIndex]["children"] = currentList;
+						return tempList;
+					});
+				}}
+				{...sortableOptions}
+			>
+				{block.children &&
+				block.children.map((childBlock: any, index: any) => {
+					return (
+						<BlockWrapper
+							key={childBlock.id}
+							block={childBlock}
+							blockIndex={[...blockIndex, index]}
+							setBlocks={setBlocks}
+						/>
+					);
+				})}
+			</ReactSortable>
+		</>
+	);
+}
+function BlockWrapper(props: any) {
+	const { block, blockIndex, setBlocks } = props
+
+	if (!block) return null;
+	return (
+		<StyledBlockWrapper className="block">
+			{block.name}
+			<Container
+				block={block}
+				setBlocks={setBlocks}
+				blockIndex={blockIndex}
+			/>
+			<a href="#" onClick={() => { }}>(remover)</a>
+		</StyledBlockWrapper>
+	);
+}
